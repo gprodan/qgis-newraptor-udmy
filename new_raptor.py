@@ -23,7 +23,7 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QDate
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QMessageBox
+from qgis.PyQt.QtWidgets import QAction, QMessageBox, QTableWidgetItem
 
 from qgis.core import QgsProject, QgsFeature, QgsGeometry, QgsPoint
 # Initialize Qt resources from file resources.py
@@ -208,6 +208,8 @@ class NewRaptor:
             missing_layers.append("Raptor Nests") 
         if not "Raptor Buffer" in map_layers:
             missing_layers.append("Raptor Buffer")
+        if not "Linear Buffer" in map_layers:
+            missing_layers.append("Linear Buffer")
         if missing_layers:
             msg = "The following layers are missing from this project\n"
             for lyr in missing_layers:
@@ -225,6 +227,7 @@ class NewRaptor:
             # substitute with your code.
             lyrNests = QgsProject.instance().mapLayersByName("Raptor Nests")[0]
             lyrBuffer = QgsProject.instance().mapLayersByName("Raptor Buffer")[0]
+            lyrLinear = QgsProject.instance().mapLayersByName("Linear Buffer")[0]
             idxNestID = lyrNests.fields().indexOf("Nest_ID")
             valNestID = lyrNests.maximumValue(idxNestID) + 1
             valLat = self.dlg.spbLatitude.value()
@@ -258,6 +261,24 @@ class NewRaptor:
             lyrBuffer.reload()
 
             dlgTable = DlgTable()
+            dlgTable.setWindowTitle("Impact Table for Nest {}".format(valNestID))
+            # Find linear projects that will be imapcted and report them in the table
+            bb = buffer.boundingBox()
+            linears = lyrLinear.getFeatures(bb)
+            for linear in linears:
+                valID = linear.attribute("Project")
+                valType = linear.attribute("type")
+                valDistance = linear.geometry().distance(geom)
+                if valDistance < valBuffer:
+                    # Populate table with linear data
+                    row = dlgTable.tblImpacts.rowCount()
+                    dlgTable.tblImpacts.insertRow(row)
+                    dlgTable.tblImpacts.setItem(row, 0, QTableWidgetItem(str(valID)))
+                    dlgTable.tblImpacts.setItem(row, 1, QTableWidgetItem(valType))
+                    twi = QTableWidgetItem("{:4.5f}".format(valDistance))
+                    twi.setTextAlignment(QtCore.Qt.AlignRight)
+                    dlgTable.tblImpacts.setItem(row, 2, twi)
+            dlgTable.tblImpacts.sortItems(2)
             dlgTable.show()
             dlgTable.exec_()
 
